@@ -1,0 +1,76 @@
+name: Publish signed Android APK
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+concurrency:
+  group: wordstep-release
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    environment: android-release
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check identity, version and release tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          python -m unittest discover -s tests -p 'test_*.py'
+          python scripts/release.py check --tag "$RELEASE_TAG"
+      - name: Install pinned Android SDK packages
+        run: '"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0"'
+      - name: Restore original signing key in runner temporary storage
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          python - <<'PY'
+          import base64, os
+          from pathlib import Path
+          root=Path(os.environ['RUNNER_TEMP'])
+          key=os.environ.get('KEYSTORE_BASE64','')
+          password=os.environ.get('KEYSTORE_PASSWORD','')
+          if not key or not password: raise SystemExit('Original signing secrets are missing; refusing to generate a key.')
+          (root/'wordstep.jks').write_bytes(base64.b64decode(key,validate=True))
+          (root/'wordstep-password.txt').write_text(password,encoding='utf-8')
+          (root/'wordstep.jks').chmod(0o600)
+          (root/'wordstep-password.txt').chmod(0o600)
+          PY
+      - name: Build and verify signed APK
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/wordstep.jks
+          ANDROID_KEYSTORE_PASSWORD_FILE: ${{ runner.temp }}/wordstep-password.txt
+        run: python scripts/build.py
+      - name: Publish versioned GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: python scripts/release.py publish --tag "$RELEASE_TAG"
+      - name: Remove temporary signing material
+        if: always()
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          for name in ['wordstep.jks','wordstep-password.txt']:
+              (Path(os.environ['RUNNER_TEMP'])/name).unlink(missing_ok=True)
+          PY
+  pages:
+    needs: release
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/pages.yml

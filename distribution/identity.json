@@ -1,0 +1,8 @@
+{
+  "applicationId": "com.yunjin.wordstep",
+  "keyAlias": "wordstep",
+  "certificateSha256": "8d9a4fc699f1d02b1a957af53a174e559e3275c8bb4f8b5ec8e4ad7323ceec84",
+  "webViewHost": "appassets.androidplatform.net",
+  "storageKey": "wordstep-v1",
+  "firstDistributedVersionCode": 1
+}

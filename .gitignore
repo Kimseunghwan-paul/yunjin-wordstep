@@ -1,0 +1,14 @@
+/tools/
+/build/
+/output/
+/signing/
+__pycache__/
+*.pyc
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.b64
+password.txt
+.env
+.env.*
