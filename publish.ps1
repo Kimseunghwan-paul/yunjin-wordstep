@@ -20,7 +20,7 @@ try {
  if($LASTEXITCODE -eq 0){throw 'Tag already exists. Never move a published tag; choose a new version.'}
  git push -u origin HEAD
  Check-Exit
- git tag -a $tag -m "Release $tag"
+ git -c user.name=Codex -c user.email=codex@openai.com tag -a $tag -m "Release $tag"
  Check-Exit
  git push origin "refs/tags/$tag"
  Check-Exit

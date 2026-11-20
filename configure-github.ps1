@@ -27,10 +27,27 @@ try {
  $origin=git remote get-url origin 2>$null
  if($LASTEXITCODE -ne 0){git remote add origin "https://github.com/$Repository.git";Check-Exit}
  elseif($origin -ne "https://github.com/$Repository.git" -and $origin -ne "git@github.com:$Repository.git"){throw 'Existing origin is a different repository; stopping.'}
+ # Prefer this repository's approved GitHub CLI login over unrelated global credential helpers.
+ $ghPath=(Get-Command gh).Source.Replace('\','/')
+ $helper='!"'+$ghPath+'" auth git-credential'
+ git config --local --replace-all credential.https://github.com.helper ''
+ Check-Exit
+ git config --local --add credential.https://github.com.helper $helper
+ Check-Exit
  gh api "repos/$Repository/pages" --silent 2>$null
  if($LASTEXITCODE -eq 0){ gh api --method PUT "repos/$Repository/pages" -f build_type=workflow --silent }
  else { gh api --method POST "repos/$Repository/pages" -f build_type=workflow --silent }
  if($LASTEXITCODE -ne 0){Write-Warning 'Pages configuration is pending. Push the initial main branch, then rerun this setup.'}
+ # Pages environments commonly allow only main initially. Add release-tag deployments without deleting existing rules.
+ $pagesEnvironment=gh api "repos/$Repository/environments/github-pages" 2>$null | ConvertFrom-Json
+ if($LASTEXITCODE -eq 0 -and $pagesEnvironment.deployment_branch_policy.custom_branch_policies){
+  $policies=gh api "repos/$Repository/environments/github-pages/deployment-branch-policies" | ConvertFrom-Json
+  Check-Exit
+  if(-not ($policies.branch_policies | Where-Object {$_.name -eq 'v*' -and $_.type -eq 'tag'})){
+   gh api --method POST "repos/$Repository/environments/github-pages/deployment-branch-policies" -f 'name=v*' -f type=tag --silent
+   Check-Exit
+  }
+ }
  Write-Output "Configured $Repository. Signing secrets are stored in the android-release environment."
  Write-Output 'Review staged source before the first push. Never add signing/, tools/, build/ or output/.'
 }finally{Pop-Location}
