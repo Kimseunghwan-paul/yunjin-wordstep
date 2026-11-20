@@ -40,7 +40,7 @@ jobs:
           import base64, os
           from pathlib import Path
           root=Path(os.environ['RUNNER_TEMP'])
-          key=os.environ.get('KEYSTORE_BASE64','')
+          key=os.environ.get('KEYSTORE_BASE64','').strip()
           password=os.environ.get('KEYSTORE_PASSWORD','')
           if not key or not password: raise SystemExit('Original signing secrets are missing; refusing to generate a key.')
           (root/'wordstep.jks').write_bytes(base64.b64decode(key,validate=True))
